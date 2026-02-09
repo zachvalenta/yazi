@@ -1,42 +1,53 @@
 --- @sync peek
 local M = {}
 
--- Extract symbols based on file extension
+-- Color scheme for different symbol types (works with catppuccin theme)
+local COLORS = {
+	header1 = "red",      -- Top level headers
+	header2 = "magenta",  -- Second level headers
+	header3 = "yellow",   -- Third level headers
+	header4 = "green",    -- Fourth level headers
+	class = "blue",       -- Classes, structs, enums
+	function_def = "cyan", -- Functions, methods
+	export = "magenta",   -- Exports, public items
+}
+
+-- Extract symbols with type information for coloring
 local function extract_symbols(path, ext)
 	local file = io.open(path, "r")
 	if not file then
-		return { "ERROR: Could not open file" }
+		return { { type = "error", text = "ERROR: Could not open file" } }
 	end
 
 	local symbols = {}
-	local line_num = 0
 
 	for line in file:lines() do
-		line_num = line_num + 1
 		local symbol = nil
+		local symbol_type = nil
 
 		if ext == "md" then
-			-- Markdown headers
+			-- Markdown headers with level-based coloring
 			local level, text = line:match("^(#+)%s+(.+)")
 			if level then
 				local indent = string.rep("  ", #level - 1)
-				symbol = string.format("%s%s", indent, text)
+				local color_key = "header" .. math.min(#level, 4)
+				symbol = indent .. text
+				symbol_type = color_key
 			end
 
 		elseif ext == "py" then
 			-- Python classes and functions
 			local class_name = line:match("^class%s+([%w_]+)")
 			if class_name then
-				symbol = string.format("class %s", class_name)
+				symbol = "class " .. class_name
+				symbol_type = "class"
 			else
 				local func_name = line:match("^%s*def%s+([%w_]+)")
 				if func_name then
-					local indent = line:match("^(%s*)")
-					if indent == "" then
-						symbol = string.format("def %s()", func_name)
-					else
-						symbol = string.format("  def %s()", func_name)
-					end
+					local indent_str = line:match("^(%s*)")
+					local indent = indent_str == "" and "" or "  "
+					symbol = indent .. "def " .. func_name .. "()"
+					symbol_type = "function_def"
 				end
 			end
 
@@ -44,57 +55,68 @@ local function extract_symbols(path, ext)
 			-- Lua functions
 			local func_name = line:match("^%s*function%s+[%w_.]*:?([%w_]+)")
 			if func_name then
-				symbol = string.format("function %s()", func_name)
+				symbol = "function " .. func_name .. "()"
+				symbol_type = "function_def"
 			else
 				local local_func = line:match("^%s*local%s+function%s+([%w_]+)")
 				if local_func then
-					symbol = string.format("local function %s()", local_func)
+					symbol = "local function " .. local_func .. "()"
+					symbol_type = "function_def"
 				end
 			end
 
 		elseif ext == "js" or ext == "ts" or ext == "jsx" or ext == "tsx" or ext == "mjs" then
-			-- JavaScript/TypeScript classes, functions, exports
+			-- JavaScript/TypeScript
 			local class_name = line:match("^%s*class%s+([%w_]+)")
 			if class_name then
-				symbol = string.format("class %s", class_name)
+				symbol = "class " .. class_name
+				symbol_type = "class"
 			else
 				local func_name = line:match("^%s*function%s+([%w_]+)")
 				if func_name then
-					symbol = string.format("function %s()", func_name)
+					symbol = "function " .. func_name .. "()"
+					symbol_type = "function_def"
 				else
 					local const_func = line:match("^%s*const%s+([%w_]+)%s*=%s*%(")
 					if const_func then
-						symbol = string.format("const %s = ()", const_func)
+						symbol = "const " .. const_func .. " = ()"
+						symbol_type = "function_def"
 					else
 						local export_func = line:match("^%s*export%s+function%s+([%w_]+)")
 						if export_func then
-							symbol = string.format("export function %s()", export_func)
+							symbol = "export function " .. export_func .. "()"
+							symbol_type = "export"
 						end
 					end
 				end
 			end
 
 		elseif ext == "rs" then
-			-- Rust functions, structs, enums, impls
+			-- Rust
 			local fn_name = line:match("^%s*pub%s+fn%s+([%w_]+)")
 			if fn_name then
-				symbol = string.format("pub fn %s()", fn_name)
+				symbol = "pub fn " .. fn_name .. "()"
+				symbol_type = "export"
 			else
 				local priv_fn = line:match("^%s*fn%s+([%w_]+)")
 				if priv_fn then
-					symbol = string.format("fn %s()", priv_fn)
+					symbol = "fn " .. priv_fn .. "()"
+					symbol_type = "function_def"
 				else
 					local struct_name = line:match("^%s*pub%s+struct%s+([%w_]+)")
 					if struct_name then
-						symbol = string.format("pub struct %s", struct_name)
+						symbol = "pub struct " .. struct_name
+						symbol_type = "export"
 					else
 						local enum_name = line:match("^%s*pub%s+enum%s+([%w_]+)")
 						if enum_name then
-							symbol = string.format("pub enum %s", enum_name)
+							symbol = "pub enum " .. enum_name
+							symbol_type = "export"
 						else
 							local impl_name = line:match("^%s*impl%s+([%w_<>]+)")
 							if impl_name then
-								symbol = string.format("impl %s", impl_name)
+								symbol = "impl " .. impl_name
+								symbol_type = "class"
 							end
 						end
 					end
@@ -102,31 +124,36 @@ local function extract_symbols(path, ext)
 			end
 
 		elseif ext == "go" then
-			-- Go functions, types, structs
+			-- Go
 			local func_name = line:match("^func%s+([%w_]+)")
 			if func_name then
-				symbol = string.format("func %s()", func_name)
+				symbol = "func " .. func_name .. "()"
+				symbol_type = "function_def"
 			else
 				local method = line:match("^func%s+%([^)]+%)%s+([%w_]+)")
 				if method then
-					symbol = string.format("func %s()", method)
+					symbol = "func " .. method .. "()"
+					symbol_type = "function_def"
 				else
 					local type_name = line:match("^type%s+([%w_]+)")
 					if type_name then
-						symbol = string.format("type %s", type_name)
+						symbol = "type " .. type_name
+						symbol_type = "class"
 					end
 				end
 			end
 
 		elseif ext == "rb" then
-			-- Ruby classes and methods
+			-- Ruby
 			local class_name = line:match("^%s*class%s+([%w_:]+)")
 			if class_name then
-				symbol = string.format("class %s", class_name)
+				symbol = "class " .. class_name
+				symbol_type = "class"
 			else
 				local method_name = line:match("^%s*def%s+([%w_?!]+)")
 				if method_name then
-					symbol = string.format("def %s", method_name)
+					symbol = "def " .. method_name
+					symbol_type = "function_def"
 				end
 			end
 
@@ -134,24 +161,26 @@ local function extract_symbols(path, ext)
 			-- Shell functions
 			local func_name = line:match("^([%w_]+)%(%)")
 			if func_name then
-				symbol = string.format("function %s()", func_name)
+				symbol = "function " .. func_name .. "()"
+				symbol_type = "function_def"
 			else
 				local func_keyword = line:match("^function%s+([%w_]+)")
 				if func_keyword then
-					symbol = string.format("function %s()", func_keyword)
+					symbol = "function " .. func_keyword .. "()"
+					symbol_type = "function_def"
 				end
 			end
 		end
 
 		if symbol then
-			table.insert(symbols, string.format("%4d: %s", line_num, symbol))
+			table.insert(symbols, { type = symbol_type, text = symbol })
 		end
 	end
 
 	file:close()
 
 	if #symbols == 0 then
-		return { "No symbols found" }
+		return { { type = "info", text = "No symbols found" } }
 	end
 	return symbols
 end
@@ -169,10 +198,12 @@ function M:peek(job)
 
 	local symbols = extract_symbols(path, ext)
 
-	-- Create text widget
+	-- Create colored text lines
 	local lines = {}
-	for _, symbol in ipairs(symbols) do
-		table.insert(lines, ui.Line(symbol))
+	for _, sym in ipairs(symbols) do
+		local color = COLORS[sym.type] or "white"
+		local span = ui.Span(sym.text):style(ui.Style():fg(color))
+		table.insert(lines, ui.Line { span })
 	end
 
 	ya.preview_widget(job, { ui.Text(lines):area(job.area) })
