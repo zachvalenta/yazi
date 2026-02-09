@@ -1,15 +1,15 @@
 --- @sync peek
 local M = {}
 
--- Color scheme for different symbol types (works with catppuccin theme)
+-- Catppuccin Mocha color scheme
 local COLORS = {
-	header1 = "red",      -- Top level headers
-	header2 = "magenta",  -- Second level headers
-	header3 = "yellow",   -- Third level headers
-	header4 = "green",    -- Fourth level headers
-	class = "blue",       -- Classes, structs, enums
-	function_def = "cyan", -- Functions, methods
-	export = "magenta",   -- Exports, public items
+	header1 = "#f38ba8",      -- Red - Top level headers
+	header2 = "#fab387",      -- Peach - Second level headers
+	header3 = "#f9e2af",      -- Yellow - Third level headers
+	header4 = "#a6e3a1",      -- Green - Fourth level headers
+	class = "#89b4fa",        -- Blue - Classes, structs, enums
+	function_def = "#94e2d5", -- Teal - Functions, methods
+	export = "#cba6f7",       -- Mauve - Exports, public items
 }
 
 -- Extract symbols with type information for coloring
