@@ -7,8 +7,8 @@ local COLORS = {
 	header2 = "#fab387",      -- Peach - Second level headers
 	header3 = "#f9e2af",      -- Yellow - Third level headers
 	header4 = "#a6e3a1",      -- Green - Fourth level headers
-	class = "#89b4fa",        -- Blue - Classes, structs, enums
-	function_def = "#94e2d5", -- Teal - Functions, methods
+	class = "#f9e2af",        -- Yellow - Classes, structs, enums, types
+	function_def = "#89b4fa", -- Blue - Functions, methods
 	export = "#cba6f7",       -- Mauve - Exports, public items
 }
 
