@@ -24,19 +24,30 @@ local function extract_symbols(path, ext)
 	local in_impl = false   -- Track if we're inside a Rust impl block
 	local class_indent = 0  -- Track indentation level of current class (for Python)
 	local current_type = nil -- Track current Go type for methods
+	local in_code_block = false -- Track if we're inside a markdown code block
 
 	for line in file:lines() do
 		local symbol = nil
 		local symbol_type = nil
 
 		if ext == "md" then
-			-- Markdown headers with level-based coloring
-			local level, text = line:match("^(#+)%s+(.+)")
-			if level then
-				local indent = string.rep("  ", #level - 1)
-				local color_key = "header" .. math.min(#level, 4)
-				symbol = indent .. text
-				symbol_type = color_key
+			-- Track code blocks (fenced with ``` or ~~~)
+			if line:match("^```") or line:match("^~~~") then
+				in_code_block = not in_code_block
+			end
+
+			-- Only extract headers if we're NOT inside a code block
+			if not in_code_block then
+				local level, text = line:match("^(#+)%s+(.+)")
+				if level and text then
+					-- Skip headers that are URLs (start with http:// or https://)
+					if not text:match("^https?://") then
+						local indent = string.rep("  ", #level - 1)
+						local color_key = "header" .. math.min(#level, 4)
+						symbol = indent .. text
+						symbol_type = color_key
+					end
+				end
 			end
 
 		elseif ext == "py" then
